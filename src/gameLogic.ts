@@ -5,7 +5,8 @@ interface BoardDelta {
 }
 type IProposalData = BoardDelta;
 interface IState {
-  board: Board;
+  myBoard: Board;
+  yourBoard: Board;
   delta: BoardDelta;
   start: number;
   ship: number;
@@ -36,32 +37,113 @@ module gameLogic {
 
 
   export function getInitialState(): IState {
-    return {board: getInitialBoard(), delta: null, ship: 0, start:0};
+    return {myBoard: getInitialBoard(), yourBoard: getInitialBoard(), delta: null, ship: 0, start:0};
   }
 
-  /**
-   * Return the winner (either 'X' or 'O') or '' if there is no winner.
-   * The board is a matrix of size 3x3 containing either 'X', 'O', or ''.
-   * E.g., getWinner returns 'X' for the following board:
-   *     [['X', 'O', ''],
-   *      ['X', 'O', ''],
-   *      ['X', '', '']]
-   */
-    function setShip(board: Board, state: IState, row: number, col: number): IState {
-      let shipNum = state.ship;
-      let isStart = 0;
-      if(shipNum!=5) {
+  export function validSet(board: Board, row: number, col: number, leng: number, direction: boolean): boolean {
+    if(direction == true) {
+      if((row + leng) > 10 || row < 0 || col < 0) {
+        return false;
+      }
+    }
+    else {
+      if((col + leng) > 10 || row < 0 || col < 0) {
+        return false;
+      }
+    }
+
+    return true;
+    
+  }
+
+  function setShipRow(board: Board, state: IState, row: number, col: number, direction: boolean): IState {
+    let shipNum = state.ship;
+    let originBoard = board;
+    if(shipNum < 5) {
+      if(state.start==0) {
         if(board[row][col] === 'O') {
           throw new Error("already set!");
         }
-        else 
-          board[row][col] = 'O';
-      }
-      else {
-        isStart = 1;
-      }
-      return {board, delta:{row,col}, ship: shipNum+1, start: isStart};
+        else {
+          let length=5-shipNum;
+          let compensate=0;
+          
+          /**give compensate to out of boundary */
+          if(!validSet(board, row, col, length, direction)) {
+            compensate = row+length-ROWS;
+          }
 
+          /**check if already set */
+          for(let i=0; i<length; i++) {
+            /**check if already set */
+            if(board[row-compensate+i][col]==='O') {
+              window.alert("Already set ship here");
+              return {myBoard: originBoard ,yourBoard: state.yourBoard, delta:null, ship: shipNum, start: state.start};
+            }
+          }
+
+          for(let i=0; i<length; i++) {
+            board[row-compensate+i][col]='O';
+          }
+          
+          shipNum++;     
+          console.log("shipNum:", shipNum);
+        }
+      }
+    }
+    else {
+      return {myBoard: board,yourBoard: state.yourBoard, delta:{row,col}, ship: shipNum, start: 1};
+    }
+    if(shipNum==5) {
+      state.start=1;
+    }
+
+    return {myBoard: board,yourBoard: state.yourBoard, delta:{row,col}, ship: shipNum, start: state.start};
+  }
+
+  function setShipCol(board: Board, state: IState, row: number, col: number, direction: boolean): IState {
+    let shipNum = state.ship;
+    let originBoard = board;
+    if(shipNum < 5) {
+      if(state.start==0) {
+        if(board[row][col] === 'O') {
+          throw new Error("already set!");
+        }
+        else {
+          let length=5-shipNum;
+          let compensate=0;
+          
+          /**give compensate to out of boundary */
+          if(!validSet(board, row, col, length,direction)) {
+            compensate = col+length-COLS;
+          }
+
+          /**check if already set */
+          for(let i=0; i<length; i++) {
+            /**check if already set */
+            if(board[row][col-compensate+i]==='O') {
+              window.alert("Already set ship here");
+              return {myBoard: originBoard ,yourBoard: state.yourBoard, delta:null, ship: shipNum, start: state.start};
+            }
+          }
+
+          for(let i=0; i<length; i++) {
+            board[row][col-compensate+i]='O';
+          }
+          
+          shipNum++;     
+          console.log("shipNum:", shipNum);
+        }
+      }
+    }
+    else {
+      return {myBoard: board,yourBoard: state.yourBoard, delta:{row,col}, ship: shipNum, start: 1};
+    }
+    if(shipNum==5) {
+      state.start=1;
+    }
+
+    return {myBoard: board,yourBoard: state.yourBoard, delta:{row,col}, ship: shipNum, start: state.start};
   }
 
   function getWinner(board: Board): string {
@@ -78,76 +160,95 @@ module gameLogic {
     return "I lose!";
   }
 
-  function getShip(board: Board): number {
-    let shipNum = 0;
-    for (let i = 0; i < ROWS; i++) {
-      for (let j = 0; j < COLS; j++) {
-        if(board[i][j]=='O') {
-            shipNum++;
-        }
-      }
-    }
-
-    return shipNum;
-  }
-
-  /**
-   * Returns the move that should be performed when player
-   * with index turnIndexBeforeMove makes a move in cell row X col.
-   */
   export function createMove(
-      stateBeforeMove: IState, row: number, col: number, turnIndexBeforeMove: number): IMove {
+      stateBeforeMove: IState, row: number, col: number, turnIndexBeforeMove: number, whichBoard: number, direction: boolean): IMove {
+
     if (!stateBeforeMove) {
       stateBeforeMove = getInitialState();
     }
 
-    let board: Board = stateBeforeMove.board;
+    let myBoard: Board = stateBeforeMove.myBoard;
+    let yourBoard: Board = stateBeforeMove.yourBoard;
+
     /**set ship */
-    if(stateBeforeMove.ship!=5 && stateBeforeMove.start!=1) {
-      console.log("setting ship");
-      let shipState = setShip(board, stateBeforeMove, row, col);
-      return {endMatchScores: null, turnIndex: 1-turnIndexBeforeMove, state: shipState};
+    if(whichBoard == 0) {
+      if(stateBeforeMove.start!=1) {
+        console.log("setting ship");
+        let shipState;
+        if(direction == true) {
+          shipState = setShipRow(myBoard, stateBeforeMove, row, col, direction);
+        }
+        else 
+          shipState = setShipCol(myBoard, stateBeforeMove, row, col, direction);
+
+        return {endMatchScores: null, turnIndex: 0, state: shipState};
+      }
+      else {
+        console.log("Game has started!");
+        return {endMatchScores: null, turnIndex: 1, state: stateBeforeMove};
+      }
     }
 
-    if (board[row][col] === 'X' || board[row][col] === 'M') {
-      console.log("already shoot!");
-      throw new Error("already shoot!");
-    }
-    if (getWinner(board) !== '') {
-      throw new Error("Can only make a move if the game is not over!");
-    }
-    let boardAfterMove = angular.copy(board);
-    //boardAfterMove[row][col] = turnIndexBeforeMove === 0 ? 'X' : 'O';
-    if(board[row][col]==='')
-        boardAfterMove[row][col] = 'M';
-    else
-        boardAfterMove[row][col] = 'X';
+    else if (whichBoard==1) { 
+      if(stateBeforeMove.start!=1) {
+        console.log("Not Started");
+        throw new Error("Not Started");
+      }
 
-    let winner = getWinner(boardAfterMove);
-    let shipNum = getShip(boardAfterMove);
-    let endMatchScores: number[];
-    let turnIndex: number;
-    if (winner !== '') {
-      // Game over.
-      turnIndex = -1;
-      endMatchScores = winner === 'X' ? [1, 0] : winner === 'O' ? [0, 1] : [0, 0];
-    } else {
-      // Game continues. Now it's the opponent's turn (the turn switches from 0 to 1 and 1 to 0).
-      turnIndex = 1 - turnIndexBeforeMove;
-      endMatchScores = null;
+      if(yourBoard[row][col] === 'X' || yourBoard[row][col] === 'M') {
+        console.log("already full!");
+        throw new Error("already full!");
+      }
+
+      if (getWinner(myBoard) !== '') {
+        throw new Error("Can only make a move if the game is not over!");
+      }
+
+      let myBoardAfterMove = angular.copy(myBoard);
+      let yourBoardAfterMove = angular.copy(yourBoard);
+
+      //boardAfterMove[row][col] = turnIndexBeforeMove === 0 ? 'X' : 'O';
+      if(yourBoard[row][col]==='')
+          yourBoardAfterMove[row][col] = 'M';
+      else
+          yourBoardAfterMove[row][col] = 'X';
+
+      let winner = getWinner(myBoardAfterMove);
+      let shipNum = stateBeforeMove.ship;
+      let endMatchScores: number[];
+      let turnIndex: number;
+      if (winner !== '') {
+        // Game over.
+        turnIndex = -1;
+        endMatchScores = winner === 'X' ? [1, 0] : winner === 'O' ? [0, 1] : [0, 0];
+      } else {
+        // Game continues. Now it's the opponent's turn (the turn switches from 0 to 1 and 1 to 0).
+        turnIndex = 1 - turnIndexBeforeMove;
+        endMatchScores = null;
+      }
+      let delta: BoardDelta = {row: row, col: col};
+      let state: IState = {delta: delta, myBoard: myBoardAfterMove, yourBoard: yourBoardAfterMove, ship:shipNum, start: 1};
+
+      if(shipNum==0) {
+        window.alert("Game Ended!");
+      }
+
+      return {endMatchScores: endMatchScores, turnIndex: turnIndex, state: state};
+      }
     }
-    let delta: BoardDelta = {row: row, col: col};
-    let state: IState = {delta: delta, board: boardAfterMove, ship:shipNum, start: 1};
-    return {endMatchScores: endMatchScores, turnIndex: turnIndex, state: state};
-  }
 
   export function createInitialMove(): IMove {
     return {endMatchScores: null, turnIndex: 0,
         state: getInitialState()};
   }
 
+/*
   export function forSimpleTestHtml() {
-    var move = gameLogic.createMove(null, 0, 0, 0);
+    var move = gameLogic.createMove(null,null, 0, 0, 0);
     log.log("move=", move);
   }
+*/
+
 }
+
+

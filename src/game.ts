@@ -5,7 +5,14 @@ interface SupportedLanguages {
   hi: string, es: string,
 };
 
+
+
+
 module game {
+
+  export let direction: boolean = true;
+  export function flipDirection() { direction = !direction; }
+
   export let $rootScope: angular.IScope = null;
   export let $timeout: angular.ITimeoutService = null;
 
@@ -190,14 +197,29 @@ module game {
       currentUpdateUI.yourPlayerIndex === currentUpdateUI.turnIndex; // it's my turn
   }
 
-  export function cellClicked(row: number, col: number): void {
-    log.info("Clicked on cell:", row, col);
-    log.info("Game got:", row);
+  export function cellClickedYours(row: number, col: number, direction: boolean): void {
+    log.info("Your Board cell:", row, col);
+    //log.info("Game got:", row);
     if (!isHumanTurn()) return;
     let nextMove: IMove = null;
     try {
       nextMove = gameLogic.createMove(
-          state, row, col, currentUpdateUI.turnIndex);
+          state, row, col, currentUpdateUI.turnIndex, 1,direction);
+    } catch (e) {
+      return;
+    }
+    // Move is legal, make it!
+    makeMove(nextMove);
+  }
+
+    export function cellClickedMy(row: number, col: number, direction: boolean): void {
+    log.info("My Board cell:", row, col);
+    //log.info("Game got:", row);
+    if (!isHumanTurn()) return;
+    let nextMove: IMove = null;
+    try {
+      nextMove = gameLogic.createMove(
+          state, row, col, currentUpdateUI.turnIndex, 0, direction);
     } catch (e) {
       log.info(["Cell is already full in position:", row, col]);
       return;
@@ -206,31 +228,131 @@ module game {
     makeMove(nextMove);
   }
 
-  export function cellOver(row: number, col: number): void {
-    log.info("Over on cell:", row, col);
+
+  export function myHover(row: number, col: number, direction: boolean): void {
+    let compensate = 0;
+    let length = 5-state.ship;
+    let show = true;
+    if(direction==true) {
+      if(!gameLogic.validSet(state.myBoard, row, col, length, direction))
+        compensate = row + length - gameLogic.ROWS;
+      
+      for(let i=0; i<length; i++) {
+        if(state.myBoard[row-compensate+i][col]!=="") {
+          show = false;
+          break;
+        }
+      }
+    }
+    else {
+      if(!gameLogic.validSet(state.myBoard, row, col, length, direction))
+        compensate = col + length - gameLogic.COLS;
+      
+      for(let i=0; i<length; i++) {
+        if(state.myBoard[row][col-compensate+i]!=="") {
+          show = false;
+          break;
+        }
+      }
+    }
+
+    if(show==true) {
+      if(direction==true) {   //row
+        for(let i=0; i<length; i++) { 
+          document.getElementById('my' + (row-compensate+i) + 'x' + col).classList.add("myhover");
+        }
+      }
+      else {
+        for(let i=0; i<length; i++) { 
+          document.getElementById('my' + row + 'x' + (col-compensate+i)).classList.add("myhover");
+        }
+      }
+    }
+  }
+
+  export function myHoverLeave(row: number, col: number, direction: boolean): void {
+    /*
+    let compensate = 0;
+    let length = 5-state.ship;
+
+    if(direction==true) {
+      if(!gameLogic.validSet(state.myBoard, row, col, length, direction))
+        compensate = row + length - gameLogic.ROWS;
+    }
+    else {
+      if(!gameLogic.validSet(state.myBoard, row, col, length, direction))
+        compensate = col + length - gameLogic.COLS;
+    }
     
+    if(direction==true) {
+      for(let i=0; i<length; i++) {
+          document.getElementById('my' + (row-compensate+i) + 'x' + col).classList.remove("myhover");
+      } 
+    }
+    else {
+      for(let i=0; i<length; i++) {
+          document.getElementById('my' + row + 'x' + (col-compensate+i)).classList.remove("myhover");
+      } 
+    }
+*/
+
+    if(direction==true) {
+      for(let i=0; i<gameLogic.ROWS; i++) {
+        if(document.getElementById('my' + i + 'x' + col).classList.contains("myhover")) {
+          document.getElementById('my' + i + 'x' + col).classList.remove("myhover");
+        }
+      }
+    }
+    else {
+      for(let i=0; i<gameLogic.COLS; i++) {
+        if(document.getElementById('my' + row + 'x' + i).classList.contains("myhover")) {
+          document.getElementById('my' + row + 'x' + i).classList.remove("myhover");
+        }
+      }
+    }
   }
 
-  export function shouldShowImage(row: number, col: number): boolean {
-    return state.board[row][col] !== "" || isProposal(row, col);
+
+  export function yourHover(row: number, col: number): boolean {
+    return state.yourBoard[row][col]==="";
+  }
+  
+
+  export function shouldShowImage(row: number, col: number, whichboard: number): boolean {
+    if(whichboard==0) {
+      return state.myBoard[row][col] !== "" || isProposal(row, col);
+    }
+    else {
+      return state.yourBoard[row][col] !== "" || isProposal(row, col);
+    }
   }
 
-  function isPiece(row: number, col: number, turnIndex: number, pieceKind: string): boolean {
-    return state.board[row][col] === pieceKind || (isProposal(row, col) && currentUpdateUI.turnIndex == turnIndex);
+  function isPiece(row: number, col: number, turnIndex: number, pieceKind: string, whichboard: number): boolean {
+    if(whichboard==0) {
+      return state.myBoard[row][col] === pieceKind || (isProposal(row, col) && currentUpdateUI.turnIndex == turnIndex);
+    } 
+    else {
+      return state.yourBoard[row][col] === pieceKind || (isProposal(row, col) && currentUpdateUI.turnIndex == turnIndex);
+    } 
+}
+
+  export function isPieceX(row: number, col: number, whichboard: number): boolean {
+      return isPiece(row, col, 0, 'X', whichboard);
   }
 
-  export function isPieceX(row: number, col: number): boolean {
-    return isPiece(row, col, 0, 'X');
+  export function isPieceO(row: number, col: number, whichboard: number): boolean {
+    return isPiece(row, col, 1, 'O', whichboard);
   }
 
-  export function isPieceO(row: number, col: number): boolean {
-    return isPiece(row, col, 1, 'O');
+  export function isPieceM(row: number, col: number, whichboard: number): boolean {
+    return isPiece(row, col, 1, 'M', whichboard);
   }
 
   export function shouldSlowlyAppear(row: number, col: number): boolean {
-    return state.delta &&
-        state.delta.row === row && state.delta.col === col;
+      return state.delta &&
+          state.delta.row === row && state.delta.col === col;
   }
+
 }
 
 angular.module('myApp', ['gameServices'])
